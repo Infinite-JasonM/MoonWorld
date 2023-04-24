@@ -5,15 +5,20 @@ pragma solidity ^0.8.18;
 import './StandardToken.sol';
 import './ERC1132.sol';
 
+struct Lock {
+    uint256 amount;
+    uint256 validity;
+    bool claimed;
+}
 
 contract LockableToken is ERC1132, StandardToken {
 
    /**
     * @dev Error messages for require statements
     */
-    string internal constant ALREADY_LOCKED = 'Tokens already locked';
-    string internal constant NOT_LOCKED = 'No tokens locked';
-    string internal constant AMOUNT_ZERO = 'Amount can not be 0';
+    string private constant ALREADY_LOCKED = 'Tokens already locked';
+    string private constant NOT_LOCKED = 'No tokens locked';
+    string private constant AMOUNT_ZERO = 'Amount can not be 0';
 
     string public name;
     string public symbol;
@@ -24,7 +29,8 @@ contract LockableToken is ERC1132, StandardToken {
     * Shall update to _mint once openzepplin updates their npm package.
     */
     
-    constructor (uint256 _supply, string memory _name, string memory _symbol, uint8 _decimals) public {
+    constructor (uint256 _supply, string memory _name, string memory _symbol, uint8 _decimals) public
+    {
         totalSupply_ = _supply;
         balances[msg.sender] = _supply;
         name = _name;
@@ -40,27 +46,26 @@ contract LockableToken is ERC1132, StandardToken {
      * @param _amount Number of tokens to be locked
      * @param _time Lock time in seconds
      */
-    function lock(bytes32 _reason, uint256 _amount, uint256 _time)
-        public
-        returns (bool)
+    function lock(bytes32 _reason, uint256 _amount, uint256 _time) public override returns (bool)
     {
-        uint256 validUntil = now.add(_time); //solhint-disable-line
-
-        // If tokens are already locked, then functions extendLock or
-        // increaseLockAmount should be used to make any changes
         require(tokensLocked(msg.sender, _reason) == 0, ALREADY_LOCKED);
         require(_amount != 0, AMOUNT_ZERO);
 
+        uint256 validUntil = block.timestamp.add(_time);
+
         if (locked[msg.sender][_reason].amount == 0)
+        {
             lockReason[msg.sender].push(_reason);
+        }
 
         transfer(address(this), _amount);
 
-        locked[msg.sender][_reason] = lockToken(_amount, validUntil, false);
+        locked[msg.sender][_reason] = Lock(_amount, validUntil, false);
 
         emit Locked(msg.sender, _reason, _amount, validUntil);
         return true;
     }
+
     
     /**
      * @dev Transfers and Locks a specified amount of tokens,
@@ -70,22 +75,21 @@ contract LockableToken is ERC1132, StandardToken {
      * @param _amount Number of tokens to be transfered and locked
      * @param _time Lock time in seconds
      */
-    function transferWithLock(address _to, bytes32 _reason, uint256 _amount, uint256 _time)
-        public
-        returns (bool)
+    function transferWithLock(address _to, bytes32 _reason, uint256 _amount, uint256 _time) public returns (bool)
     {
-        uint256 validUntil = now.add(_time); //solhint-disable-line
-
         require(tokensLocked(_to, _reason) == 0, ALREADY_LOCKED);
         require(_amount != 0, AMOUNT_ZERO);
 
-        if (locked[_to][_reason].amount == 0)
+        uint256 validUntil = block.timestamp.add(_time);
+
+        if (locked[_to][_reason].amount == 0) {
             lockReason[_to].push(_reason);
+        }
 
         transfer(address(this), _amount);
 
-        locked[_to][_reason] = lockToken(_amount, validUntil, false);
-        
+        locked[_to][_reason] = Lock(_amount, validUntil, false);
+
         emit Locked(_to, _reason, _amount, validUntil);
         return true;
     }
@@ -97,10 +101,7 @@ contract LockableToken is ERC1132, StandardToken {
      * @param _of The address whose tokens are locked
      * @param _reason The reason to query the lock tokens for
      */
-    function tokensLocked(address _of, bytes32 _reason)
-        public
-        view
-        returns (uint256 amount)
+    function tokensLocked(address _of, bytes32 _reason) public override view returns(uint256 amount)
     {
         if (!locked[_of][_reason].claimed)
             amount = locked[_of][_reason].amount;
@@ -114,10 +115,7 @@ contract LockableToken is ERC1132, StandardToken {
      * @param _reason The reason to query the lock tokens for
      * @param _time The timestamp to query the lock tokens for
      */
-    function tokensLockedAtTime(address _of, bytes32 _reason, uint256 _time)
-        public
-        view
-        returns (uint256 amount)
+    function tokensLockedAtTime(address _of, bytes32 _reason, uint256 _time) public override view returns (uint256 amount)
     {
         if (locked[_of][_reason].validity > _time)
             amount = locked[_of][_reason].amount;
@@ -127,10 +125,7 @@ contract LockableToken is ERC1132, StandardToken {
      * @dev Returns total tokens held by an address (locked + transferable)
      * @param _of The address to query the total balance of
      */
-    function totalBalanceOf(address _of)
-        public
-        view
-        returns (uint256 amount)
+    function totalBalanceOf(address _of) public override view returns (uint256 amount)
     {
         amount = balanceOf(_of);
 
@@ -144,9 +139,7 @@ contract LockableToken is ERC1132, StandardToken {
      * @param _reason The reason to lock tokens
      * @param _time Lock extension time in seconds
      */
-    function extendLock(bytes32 _reason, uint256 _time)
-        public
-        returns (bool)
+    function extendLock(bytes32 _reason, uint256 _time) public override view returns (bool)
     {
         require(tokensLocked(msg.sender, _reason) > 0, NOT_LOCKED);
 
@@ -161,9 +154,7 @@ contract LockableToken is ERC1132, StandardToken {
      * @param _reason The reason to lock tokens
      * @param _amount Number of tokens to be increased
      */
-    function increaseLockAmount(bytes32 _reason, uint256 _amount)
-        public
-        returns (bool)
+    function increaseLockAmount(bytes32 _reason, uint256 _amount) public override view returns (bool)
     {
         require(tokensLocked(msg.sender, _reason) > 0, NOT_LOCKED);
         transfer(address(this), _amount);
@@ -179,10 +170,7 @@ contract LockableToken is ERC1132, StandardToken {
      * @param _of The address to query the the unlockable token count of
      * @param _reason The reason to query the unlockable tokens for
      */
-    function tokensUnlockable(address _of, bytes32 _reason)
-        public
-        view
-        returns (uint256 amount)
+    function tokensUnlockable(address _of, bytes32 _reason) public override view returns (uint256 amount)
     {
         if (locked[_of][_reason].validity <= now && !locked[_of][_reason].claimed) //solhint-disable-line
             amount = locked[_of][_reason].amount;
@@ -192,9 +180,7 @@ contract LockableToken is ERC1132, StandardToken {
      * @dev Unlocks the unlockable tokens of a specified address
      * @param _of Address of user, claiming back unlockable tokens
      */
-    function unlock(address _of)
-        public
-        returns (uint256 unlockableTokens)
+    function unlock(address _of) public override view returns (uint256 unlockableTokens)
     {
         uint256 lockedTokens;
 
@@ -215,10 +201,7 @@ contract LockableToken is ERC1132, StandardToken {
      * @dev Gets the unlockable tokens of a specified address
      * @param _of The address to query the the unlockable token count of
      */
-    function getUnlockableTokens(address _of)
-        public
-        view
-        returns (uint256 unlockableTokens)
+    function getUnlockableTokens(address _of) public override view returns (uint256 unlockableTokens)
     {
         for (uint256 i = 0; i < lockReason[_of].length; i++) {
             unlockableTokens = unlockableTokens.add(tokensUnlockable(_of, lockReason[_of][i]));

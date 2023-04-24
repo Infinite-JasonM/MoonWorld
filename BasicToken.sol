@@ -11,7 +11,7 @@ import "./SafeMath.sol";
  * @title Basic token
  * @dev Basic version of StandardToken, with no allowances.
  */
-contract BasicToken is ITRC20 {
+abstract contract BasicToken is ITRC20 {
   using SafeMath for uint256;
 
   mapping(address => uint256) internal balances;
