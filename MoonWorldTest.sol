@@ -8,23 +8,7 @@ import "./ITRC20.sol";
 import "./LockableToken.sol";
 import "./Owned.sol";
 import "./BasicToken.sol";
-
-/**
- * @dev Hook that is called before any token transfer. This includes minting and burning.
- *      The function signature was changed after version 0.8.0.
- *      For backwards compatibility, versions of Solidity before 0.8.0 will not receive the new function signature.
- *
- * @param from The address that is transferring the tokens.
- * @param to The address that is receiving the tokens.
- * @param amount The amount of tokens being transferred.
- */
-function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {
-    if (from == address(0)) { // When minting tokens
-        require(totalSupply() + amount <= _cap, "ERC20Capped: cap exceeded");
-    }
-}
-
-
+import "./SafeMath.sol";
 
 /**
  * @title SimpleToken
@@ -41,5 +25,20 @@ contract MoonWorldTest is LockableToken
     constructor () public LockableToken(INITIAL_SUPPLY, "MoonWorldTest", "MWT", DECIMALS) 
     {
         _mint(msg.sender, INITIAL_SUPPLY);
+    }
+    /**
+    * @dev Hook that is called before any token transfer. This includes minting and burning.
+    *      The function signature was changed after version 0.8.0.
+    *      For backwards compatibility, versions of Solidity before 0.8.0 will not receive the new function signature.
+    *
+    * @param from The address that is transferring the tokens.
+    * @param to The address that is receiving the tokens.
+    * @param amount The amount of tokens being transferred.
+    */
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual
+    {
+        if (from == address(0)) { // When minting tokens
+            require(totalSupply() + amount <= _cap, "ERC20Capped: cap exceeded");
+        }
     }
 }
