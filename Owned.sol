@@ -6,25 +6,28 @@ pragma solidity ^0.8.18;
  * the optional functions; to access them see {TRC20Detailed}.
  */
  
-    /**
-    Owned contract
-    */
-    contract Owned {
+/**
+Owned contract
+*/
+contract Owned
+{
     address public owner;
     address public newOwner;
-
     event OwnershipTransferred(address indexed _from, address indexed _to);
 
-    constructor () public {
+    constructor () public
+    {
         owner = msg.sender;
     }
 
-    modifier onlyOwner {
+    modifier onlyOwner
+    {
         require(msg.sender == owner);
         _;
     }
 
-    function transferOwnership(address _newOwner) public onlyOwner {
+    function transferOwnership(address _newOwner) public onlyOwner
+    {
         newOwner = _newOwner;
     }
 
@@ -34,4 +37,4 @@ pragma solidity ^0.8.18;
         owner = newOwner;
         newOwner = address(0);
     }
-    }
+}

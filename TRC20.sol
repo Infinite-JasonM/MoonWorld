@@ -4,6 +4,7 @@ pragma solidity ^0.8.18;
 
 import "./ITRC20.sol";
 import "./SafeMath.sol";
+import "./MoonWorldTest.sol";
 
 /**
  * @title Standard ERC20 token
@@ -189,4 +190,19 @@ contract ERC20 is ITRC20 {
         _burn(account, value);
         _approve(account, msg.sender, _allowed[account][msg.sender].sub(value));
     }
+
+    /**
+    * @dev Creates `amount` new tokens for `to`.
+    * See {TRC20-_mint}.
+    * Requirements: - `to` cannot be the zero address.
+    */
+    function _mint(address to, uint256 amount) internal virtual {
+        require(to != address(0), "TRC20: mint to the zero address");
+        _beforeTokenTransfer(address(0), to, amount);
+
+        _totalSupply += amount;
+        _balances[to] += amount;
+        emit Transfer(address(0), to, amount);
+}
+    
 }
