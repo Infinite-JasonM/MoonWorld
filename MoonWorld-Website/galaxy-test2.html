@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<!--  MoonWorld Project index.html  -->
+<!--  https://infinite-jasonm.github.io/MoonWorld/MoonWorld-Website/Index.html  -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>가상의 달 세계</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            @apply bg-slate-900 text-slate-100;
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center h-screen w-screen overflow-hidden">
+
+    <!-- 3D 캔버스 -->
+    <canvas id="moon-canvas" class="w-full h-full"></canvas>
+
+    <!-- UI 오버레이 -->
+    <div class="absolute top-0 left-0 right-0 flex flex-col items-center p-4 pointer-events-none">
+        <h1 class="text-3xl sm:text-4xl font-bold mb-2 text-center text-slate-50">가상의 우주</h1>
+        <p class="text-lg text-center text-slate-300">
+            마우스를 드래그하여 시점을 변경하세요.
+        </p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 3D Scene Setup ---
+            const canvas = document.getElementById('moon-canvas');
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000); 
+            
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000); 
+            const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // --- Lighting Setup ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.1); 
+            scene.add(ambientLight);
+            
+            const mainLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            mainLight.position.set(5, 5, 5).normalize();
+            scene.add(mainLight);
+
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.2);
+            fillLight.position.set(-5, -5, -5).normalize();
+            scene.add(fillLight);
+
+            // --- Creating a basic starry background ---
+            const starCount = 1000;
+            const starGeometry = new THREE.SphereGeometry(0.7, 32, 32); // 별의 면 수를 늘려 원형으로 만듭니다.
+            const starMaterial = new THREE.MeshBasicMaterial();
+            const stars = new THREE.Group();
+
+            for (let i = 0; i < starCount; i++) {
+                const star = new THREE.Mesh(starGeometry, starMaterial.clone());
+                star.position.x = (Math.random() - 0.5) * 2000;
+                star.position.y = (Math.random() - 0.5) * 2000;
+                star.position.z = (Math.random() - 0.5) * 2000;
+
+                const r = Math.random() * 0.5 + 0.5;
+                const g = Math.random() * 0.5 + 0.5;
+                const b = Math.random() * 0.5 + 0.5;
+                star.material.color.setRGB(r, g, b);
+
+                star.userData.twinkleSpeed = Math.random() * 100 + 0.1;
+                star.userData.twinkleOffset = Math.random() * Math.PI * 2;
+                star.material.opacity = Math.random() * 0.5 + 0.5;
+                stars.add(star);
+            }
+            scene.add(stars);
+
+            // --- Creating a wireframe guide for the galaxy ---
+            const galaxySize = 200;
+            const diskThickness = 20;
+            const coreRadius = 50;
+
+            
+            // --- 은하의 중심축 와이어프레임 (수직) ---
+            const coreGeometry = new THREE.CylinderGeometry(coreRadius, coreRadius, galaxySize * 0.6, 16);
+            const coreMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff, wireframe: true, transparent: true, opacity: 0.8 }); // 파란색으로 고정
+            
+            const coreMeshZ = new THREE.Mesh(coreGeometry, coreMaterial);
+            // Three.js CylinderGeometry는 기본적으로 Y축을 따라 생성됩니다.
+            // 따라서 별도의 회전이 필요하지 않습니다.
+            // scene.add(coreMeshZ); // 파란색 기둥을 삭제합니다.
+
+            // --- Galaxy Creation (Multiple Arms - Main) ---
+            const numberOfArms = 8;
+            const starsPerArm = 3000;
+            const totalGalaxyStars = numberOfArms * starsPerArm;
+
+            const galaxyStarsGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(totalGalaxyStars * 3);
+            const colors = new Float32Array(totalGalaxyStars * 3);
+
+            const color = new THREE.Color();
+            const armTightness = 1.0; // 곡률을 낮추기 위해 값 변경
+            const armDirection = -1; // 나선 팔 방향을 반전
+
+            for (let armIndex = 0; armIndex < numberOfArms; armIndex++) {
+                const armOffsetAngle = (Math.PI * 2 / numberOfArms) * armIndex;
+                for (let i = 0; i < starsPerArm; i++) {
+                    const distance = (i / starsPerArm) * galaxySize;
+                    
+                    // 70% 지점부터 밀도 감소
+                    const densityThreshold = 0.7;
+                    const thinningFactor = Math.max(0, (distance / galaxySize - densityThreshold) / (1 - densityThreshold));
+                    if (Math.random() < thinningFactor) {
+                        continue;
+                    }
+
+                    const angle = armDirection * armTightness * Math.log(distance > 0 ? distance : 0.001) + (Math.random() - 0.5) * 0.2 + armOffsetAngle;
+
+                    const x = distance * Math.cos(angle);
+                    const y = (Math.random() - 0.5) * diskThickness * (1 - distance / galaxySize);
+                    const z = distance * Math.sin(angle);
+
+                    // 파란 기둥 내부 제외
+                    const distanceXY = Math.sqrt(x*x + z*z);
+                    if (distanceXY < coreRadius) {
+                        continue; 
+                    }
+
+                    const starIndex = armIndex * starsPerArm + i;
+                    positions[starIndex * 3] = x;
+                    positions[starIndex * 3 + 1] = y;
+                    positions[starIndex * 3 + 2] = z;
+
+                    // 자연스러운 색상 스펙트럼 (붉은색에서 푸른색으로)
+                    const hue = (distance / galaxySize) * 0.5 + 0.95; 
+                    const saturation = 0.8 + Math.random() * 0.2;
+                    const lightness = 0.7 + Math.random() * 0.2;
+                    color.setHSL(hue % 1, saturation, lightness);
+                    
+                    colors[starIndex * 3] = color.r;
+                    colors[starIndex * 3 + 1] = color.g;
+                    colors[starIndex * 3 + 2] = color.b;
+                }
+            }
+
+            galaxyStarsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            galaxyStarsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const galaxyMaterial = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.9,
+                sizeAttenuation: true
+            });
+
+            const galaxyPoints = new THREE.Points(galaxyStarsGeometry, galaxyMaterial);
+            scene.add(galaxyPoints);
+            
+            // --- Galaxy Creation (Multiple Arms - New Layer) ---
+            const numberOfArms2 = 8;
+            const starsPerArm2 = 3000;
+            const totalGalaxyStars2 = numberOfArms2 * starsPerArm2;
+            const newGalaxySize = galaxySize * 1.5; // 기존 은하보다 길게
+            const newDiskThickness = diskThickness * 0.8; // 약간 더 얇게
+
+            const galaxyStarsGeometry2 = new THREE.BufferGeometry();
+            const positions2 = new Float32Array(totalGalaxyStars2 * 3);
+            const colors2 = new Float32Array(totalGalaxyStars2 * 3);
+            const color2 = new THREE.Color();
+            const armTightness2 = 0.8; // 더 낮은 곡률
+            const armDirection2 = -1;
+
+            for (let armIndex = 0; armIndex < numberOfArms2; armIndex++) {
+                const armOffsetAngle = (Math.PI * 2 / numberOfArms2) * armIndex;
+                for (let i = 0; i < starsPerArm2; i++) {
+                    const distance = (i / starsPerArm2) * newGalaxySize;
+
+                    // 외곽으로 갈수록 밀도 감소
+                    const densityThreshold = 0.6;
+                    const thinningFactor = Math.max(0, (distance / newGalaxySize - densityThreshold) / (1 - densityThreshold));
+                    if (Math.random() < thinningFactor) {
+                        continue;
+                    }
+
+                    // 외곽 끝을 더 좁게 만들기 위한 로직
+                    const angle = armDirection2 * armTightness2 * Math.log(distance > 0 ? distance : 0.001) + (Math.random() - 0.5) * 0.1 + armOffsetAngle;
+
+                    const x = distance * Math.cos(angle);
+                    const y = (Math.random() - 0.5) * newDiskThickness * (1 - distance / newGalaxySize) * (1 - distance / newGalaxySize); // 팔 끝을 더 좁게
+                    const z = distance * Math.sin(angle);
+
+                    // 파란 기둥 내부 제외
+                    const distanceXY = Math.sqrt(x*x + z*z);
+                    if (distanceXY < coreRadius) {
+                        continue; 
+                    }
+
+                    const starIndex = armIndex * starsPerArm2 + i;
+                    positions2[starIndex * 3] = x;
+                    positions2[starIndex * 3 + 1] = y;
+                    positions2[starIndex * 3 + 2] = z;
+
+                    // 자연스러운 색상 스펙트럼
+                    const hue = (distance / newGalaxySize) * 0.5 + 0.95; 
+                    const saturation = 0.8 + Math.random() * 0.2;
+                    const lightness = 0.8 + (distance / newGalaxySize) * 0.2;
+                    color2.setHSL(hue % 1, saturation, lightness);
+
+                    colors2[starIndex * 3] = color2.r;
+                    colors2[starIndex * 3 + 1] = color2.g;
+                    colors2[starIndex * 3 + 2] = color2.b;
+                }
+            }
+
+            galaxyStarsGeometry2.setAttribute('position', new THREE.BufferAttribute(positions2, 3));
+            galaxyStarsGeometry2.setAttribute('color', new THREE.BufferAttribute(colors2, 3));
+
+            const galaxyMaterial2 = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.9,
+                sizeAttenuation: true
+            });
+
+            const galaxyPoints2 = new THREE.Points(galaxyStarsGeometry2, galaxyMaterial2);
+            scene.add(galaxyPoints2);
+
+            // --- Galaxy Creation (New Layer) ---
+            const numberOfArms3 = 4;
+            const starsPerArm3 = 4000;
+            const totalGalaxyStars3 = numberOfArms3 * starsPerArm3;
+            const thirdGalaxySize = galaxySize * 1.8;
+            const thirdDiskThickness = diskThickness * 1.2;
+
+            const galaxyStarsGeometry3 = new THREE.BufferGeometry();
+            const positions3 = new Float32Array(totalGalaxyStars3 * 3);
+            const colors3 = new Float32Array(totalGalaxyStars3 * 3);
+            const color3 = new THREE.Color();
+            const armTightness3 = 0.8; // 더 느슨한 곡률
+            const armDirection3 = -1; // 방향을 반전하여 기존 팔과 동일하게
+
+            for (let armIndex = 0; armIndex < numberOfArms3; armIndex++) {
+                const armOffsetAngle = (Math.PI * 2 / numberOfArms3) * armIndex;
+                for (let i = 0; i < starsPerArm3; i++) {
+                    const distance = (i / starsPerArm3) * thirdGalaxySize;
+                    
+                    const thinningFactor = Math.max(0, (distance / thirdGalaxySize - 0.5) / 0.5);
+                    if (Math.random() < thinningFactor) {
+                        continue;
+                    }
+                    
+                    const angle = armDirection3 * armTightness3 * Math.log(distance > 0 ? distance : 0.001) + (Math.random() - 0.5) * 0.5 + armOffsetAngle;
+
+                    const x = distance * Math.cos(angle);
+                    const y = (Math.random() - 0.5) * thirdDiskThickness * (1 - distance / thirdGalaxySize);
+                    const z = distance * Math.sin(angle);
+
+                    const distanceXY = Math.sqrt(x*x + z*z);
+                    if (distanceXY < coreRadius) {
+                        continue; 
+                    }
+
+                    const starIndex = armIndex * starsPerArm3 + i;
+                    positions3[starIndex * 3] = x;
+                    positions3[starIndex * 3 + 1] = y;
+                    positions3[starIndex * 3 + 2] = z;
+
+                    // 자연스러운 색상 스펙트럼
+                    const hue = (distance / thirdGalaxySize) * 0.5 + 0.95; 
+                    const saturation = 0.8 + Math.random() * 0.2;
+                    const lightness = 0.5 + (distance / thirdGalaxySize) * 0.4;
+                    color3.setHSL(hue % 1, saturation, lightness);
+
+                    colors3[starIndex * 3] = color3.r;
+                    colors3[starIndex * 3 + 1] = color3.g;
+                    colors3[starIndex * 3 + 2] = color3.b;
+                }
+            }
+            
+            galaxyStarsGeometry3.setAttribute('position', new THREE.BufferAttribute(positions3, 3));
+            galaxyStarsGeometry3.setAttribute('color', new THREE.BufferAttribute(colors3, 3));
+
+            const galaxyMaterial3 = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+
+            const galaxyPoints3 = new THREE.Points(galaxyStarsGeometry3, galaxyMaterial3);
+            scene.add(galaxyPoints3);
+            
+            // --- 불규칙하게 흩어진 별들 추가 (5,000개) ---
+            const scatteredStarCount = 10000;
+            const scatteredStarsGeometry = new THREE.BufferGeometry();
+            const scatteredPositions = new Float32Array(scatteredStarCount * 3);
+            const scatteredColors = new Float32Array(scatteredStarCount * 3);
+
+            for (let i = 0; i < scatteredStarCount; i++) {
+                let x, y, z;
+                let distanceXY;
+                const maxDistance = galaxySize * 1.25; // 은하계 범위보다 25% 더 넓게 설정
+
+                // 원형 범위에 별 배치
+                do {
+                    const radius = Math.sqrt(Math.random()) * maxDistance;
+                    const angle = Math.random() * Math.PI * 2;
+                    x = radius * Math.cos(angle);
+                    z = radius * Math.sin(angle);
+                    y = (Math.random() - 0.5) * diskThickness;
+                    distanceXY = Math.sqrt(x * x + z * z);
+                } while (distanceXY < coreRadius);
+                
+                scatteredPositions[i * 3] = x;
+                scatteredPositions[i * 3 + 1] = y;
+                scatteredPositions[i * 3 + 2] = z;
+                
+                // 자연스러운 색상 스펙트럼
+                const hue = (distanceXY / maxDistance) * 0.5 + 0.95; 
+                const lightness = 1.0 - (distanceXY / maxDistance) * 0.4;
+                color.setHSL(hue % 1, 0.7, lightness);
+
+                scatteredColors[i * 3] = color.r;
+                scatteredColors[i * 3 + 1] = color.g;
+                scatteredColors[i * 3 + 2] = color.b;
+            }
+
+            scatteredStarsGeometry.setAttribute('position', new THREE.BufferAttribute(scatteredPositions, 3));
+            scatteredStarsGeometry.setAttribute('color', new THREE.BufferAttribute(scatteredColors, 3));
+            
+            const scatteredStarsMaterial = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+
+            const scatteredStars = new THREE.Points(scatteredStarsGeometry, scatteredStarsMaterial);
+            scene.add(scatteredStars);
+
+            // --- Galaxy Creation (New Layer 4) ---
+            const numberOfArms4 = 5;
+            const starsPerArm4 = 3000;
+            const totalGalaxyStars4 = numberOfArms4 * starsPerArm4;
+            const fourthGalaxySize = galaxySize * 1.6;
+            const fourthDiskThickness = diskThickness * 0.5;
+
+            const galaxyStarsGeometry4 = new THREE.BufferGeometry();
+            const positions4 = new Float32Array(totalGalaxyStars4 * 3);
+            const colors4 = new Float32Array(totalGalaxyStars4 * 3);
+            const color4 = new THREE.Color();
+            const armTightness4 = 0.5; // 더 느슨한 곡률
+            const armDirection4 = -1; // 방향은 기존 팔과 동일하게
+
+            for (let armIndex = 0; armIndex < numberOfArms4; armIndex++) {
+                const armOffsetAngle = (Math.PI * 2 / numberOfArms4) * armIndex;
+                for (let i = 0; i < starsPerArm4; i++) {
+                    const distance = (i / starsPerArm4) * fourthGalaxySize;
+                    
+                    const thinningFactor = Math.max(0, (distance / fourthGalaxySize - 0.7) / 0.3);
+                    if (Math.random() < thinningFactor) {
+                        continue;
+                    }
+                    
+                    const angle = armDirection4 * armTightness4 * Math.log(distance > 0 ? distance : 0.001) + (Math.random() - 0.5) * 0.5 + armOffsetAngle;
+
+                    const x = distance * Math.cos(angle);
+                    const y = (Math.random() - 0.5) * fourthDiskThickness * (1 - distance / fourthGalaxySize);
+                    const z = distance * Math.sin(angle);
+
+                    const distanceXY = Math.sqrt(x*x + z*z);
+                    if (distanceXY < coreRadius) {
+                        continue; 
+                    }
+
+                    const starIndex = armIndex * starsPerArm4 + i;
+                    positions4[starIndex * 3] = x;
+                    positions4[starIndex * 3 + 1] = y;
+                    positions4[starIndex * 3 + 2] = z;
+
+                    // 자연스러운 색상 스펙트럼
+                    const hue = (distance / fourthGalaxySize) * 0.5 + 0.95; 
+                    const saturation = 0.8 + Math.random() * 0.2;
+                    const lightness = 0.5 + (distance / fourthGalaxySize) * 0.4;
+                    color4.setHSL(hue % 1, saturation, lightness);
+
+                    colors4[starIndex * 3] = color4.r;
+                    colors4[starIndex * 3 + 1] = color4.g;
+                    colors4[starIndex * 3 + 2] = color4.b;
+                }
+            }
+            
+            galaxyStarsGeometry4.setAttribute('position', new THREE.BufferAttribute(positions4, 3));
+            galaxyStarsGeometry4.setAttribute('color', new THREE.BufferAttribute(colors4, 3));
+
+            const galaxyMaterial4 = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+
+            const galaxyPoints4 = new THREE.Points(galaxyStarsGeometry4, galaxyMaterial4);
+            scene.add(galaxyPoints4);
+
+
+            // --- Galaxy Creation (New Layer 5) ---
+            const numberOfArms5 = 7; // 새로운 팔의 수
+            const starsPerArm5 = 3000;
+            const totalGalaxyStars5 = numberOfArms5 * starsPerArm5;
+            const fifthGalaxySize = galaxySize * 1.9; // 기존보다 더 넓게
+            const fifthDiskThickness = diskThickness * 0.9; // 약간 더 얇게
+
+            const galaxyStarsGeometry5 = new THREE.BufferGeometry();
+            const positions5 = new Float32Array(totalGalaxyStars5 * 3);
+            const colors5 = new Float32Array(totalGalaxyStars5 * 3);
+            const color5 = new THREE.Color();
+            const armTightness5 = 0.7; // 더 느슨한 곡률
+            const armDirection5 = -1; // 방향은 기존 팔과 동일하게
+
+            for (let armIndex = 0; armIndex < numberOfArms5; armIndex++) {
+                const armOffsetAngle = (Math.PI * 2 / numberOfArms5) * armIndex;
+                for (let i = 0; i < starsPerArm5; i++) {
+                    const distance = (i / starsPerArm5) * fifthGalaxySize;
+                    
+                    const thinningFactor = Math.max(0, (distance / fifthGalaxySize - 0.7) / 0.3);
+                    if (Math.random() < thinningFactor) {
+                        continue;
+                    }
+                    
+                    const angle = armDirection5 * armTightness5 * Math.log(distance > 0 ? distance : 0.001) + (Math.random() - 0.5) * 0.5 + armOffsetAngle;
+
+                    const x = distance * Math.cos(angle);
+                    const y = (Math.random() - 0.5) * fifthDiskThickness * (1 - distance / fifthGalaxySize);
+                    const z = distance * Math.sin(angle);
+
+                    const distanceXY = Math.sqrt(x*x + z*z);
+                    if (distanceXY < coreRadius) {
+                        continue; 
+                    }
+
+                    const starIndex = armIndex * starsPerArm5 + i;
+                    positions5[starIndex * 3] = x;
+                    positions5[starIndex * 3 + 1] = y;
+                    positions5[starIndex * 3 + 2] = z;
+
+                    // 자연스러운 색상 스펙트럼
+                    const hue = (distance / fifthGalaxySize) * 0.5 + 0.95; 
+                    const saturation = 0.8 + Math.random() * 0.2;
+                    const lightness = 0.5 + (distance / fifthGalaxySize) * 0.4;
+                    color5.setHSL(hue % 1, saturation, lightness);
+
+                    colors5[starIndex * 3] = color5.r;
+                    colors5[starIndex * 3 + 1] = color5.g;
+                    colors5[starIndex * 3 + 2] = color5.b;
+                }
+            }
+            
+            galaxyStarsGeometry5.setAttribute('position', new THREE.BufferAttribute(positions5, 3));
+            galaxyStarsGeometry5.setAttribute('color', new THREE.BufferAttribute(colors5, 3));
+
+            const galaxyMaterial5 = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+
+            const galaxyPoints5 = new THREE.Points(galaxyStarsGeometry5, galaxyMaterial5);
+            scene.add(galaxyPoints5);
+
+            // --- Galaxy Creation (New Layer 6) ---
+            const numberOfArms6 = 6; 
+            const starsPerArm6 = 2500;
+            const totalGalaxyStars6 = numberOfArms6 * starsPerArm6;
+            const sixthGalaxySize = galaxySize * 2.1; 
+            const sixthDiskThickness = diskThickness * 1.5; 
+            
+            const galaxyStarsGeometry6 = new THREE.BufferGeometry();
+            const positions6 = new Float32Array(totalGalaxyStars6 * 3);
+            const colors6 = new Float32Array(totalGalaxyStars6 * 3);
+            const color6 = new THREE.Color();
+            const armTightness6 = 0.4; 
+            const armDirection6 = -1;
+
+            for (let armIndex = 0; armIndex < numberOfArms6; armIndex++) {
+                const armOffsetAngle = (Math.PI * 2 / numberOfArms6) * armIndex;
+                for (let i = 0; i < starsPerArm6; i++) {
+                    const distance = (i / starsPerArm6) * sixthGalaxySize;
+                    
+                    const thinningFactor = Math.max(0, (distance / sixthGalaxySize - 0.7) / 0.3);
+                    if (Math.random() < thinningFactor) {
+                        continue;
+                    }
+                    
+                    const angle = armDirection6 * armTightness6 * Math.log(distance > 0 ? distance : 0.001) + (Math.random() - 0.5) * 0.5 + armOffsetAngle;
+
+                    const x = distance * Math.cos(angle);
+                    const y = (Math.random() - 0.5) * sixthDiskThickness * (1 - distance / sixthGalaxySize);
+                    const z = distance * Math.sin(angle);
+
+                    const distanceXY = Math.sqrt(x*x + z*z);
+                    if (distanceXY < coreRadius) {
+                        continue; 
+                    }
+
+                    const starIndex = armIndex * starsPerArm6 + i;
+                    positions6[starIndex * 3] = x;
+                    positions6[starIndex * 3 + 1] = y;
+                    positions6[starIndex * 3 + 2] = z;
+
+                    const hue = 0.7 + (distance / sixthGalaxySize) * 0.1;
+                    const saturation = 0.9;
+                    const lightness = 0.5 + (distance / sixthGalaxySize) * 0.5;
+                    color6.setHSL(hue, saturation, lightness);
+
+                    colors6[starIndex * 3] = color6.r;
+                    colors6[starIndex * 3 + 1] = color6.g;
+                    colors6[starIndex * 3 + 2] = color6.b;
+                }
+            }
+            
+            galaxyStarsGeometry6.setAttribute('position', new THREE.BufferAttribute(positions6, 3));
+            galaxyStarsGeometry6.setAttribute('color', new THREE.BufferAttribute(colors6, 3));
+
+            const galaxyMaterial6 = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+
+            const galaxyPoints6 = new THREE.Points(galaxyStarsGeometry6, galaxyMaterial6);
+            scene.add(galaxyPoints6);
+
+
+            // --- 은하 중심축 내부의 불규칙 별들 (100개) ---
+            const innerStarCount = 100;
+            const innerStarsGeometry = new THREE.BufferGeometry();
+            const innerPositions = new Float32Array(innerStarCount * 3);
+            const innerColors = new Float32Array(innerStarCount * 3);
+            const coreHeight = galaxySize * 0.6; // 기둥 높이에 맞춰 조정
+
+            for (let i = 0; i < innerStarCount; i++) {
+                const radius = Math.random() * coreRadius;
+                const angle = Math.random() * Math.PI * 2;
+                
+                innerPositions[i * 3] = radius * Math.cos(angle);
+                innerPositions[i * 3 + 1] = (Math.random() - 0.5) * coreHeight;
+                innerPositions[i * 3 + 2] = radius * Math.sin(angle);
+                
+                // 중심부 별은 밝은 흰색
+                const brightColor = new THREE.Color(0xffffff);
+                const lightness = 0.8 + Math.random() * 0.2;
+                brightColor.setHSL(0, 0, lightness);
+                
+                innerColors[i * 3] = brightColor.r;
+                innerColors[i * 3 + 1] = brightColor.g;
+                innerColors[i * 3 + 2] = brightColor.b;
+            }
+            
+            innerStarsGeometry.setAttribute('position', new THREE.BufferAttribute(innerPositions, 3));
+            innerStarsGeometry.setAttribute('color', new THREE.BufferAttribute(innerColors, 3));
+
+            const innerStarsMaterial = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 1.0,
+                sizeAttenuation: true
+            });
+
+            const innerCoreStars = new THREE.Points(innerStarsGeometry, innerStarsMaterial);
+            scene.add(innerCoreStars);
+
+
+            // --- Galaxy Creation (New Layer 7) ---
+            const numberOfArms7 = 12; // 새로운 팔의 수
+            const starsPerArm7 = 2000;
+            const totalGalaxyStars7 = numberOfArms7 * starsPerArm7;
+            const seventhGalaxySize = galaxySize * 2.3; // 기존보다 더 넓게
+            const seventhDiskThickness = diskThickness * 0.7; // 약간 더 얇게
+
+            const galaxyStarsGeometry7 = new THREE.BufferGeometry();
+            const positions7 = new Float32Array(totalGalaxyStars7 * 3);
+            const colors7 = new Float32Array(totalGalaxyStars7 * 3);
+            const color7 = new THREE.Color();
+            const armTightness7 = 0.3; // 더 느슨한 곡률
+            const armDirection7 = -1; // 방향은 기존 팔과 동일하게
+
+            for (let armIndex = 0; armIndex < numberOfArms7; armIndex++) {
+                const armOffsetAngle = (Math.PI * 2 / numberOfArms7) * armIndex;
+                for (let i = 0; i < starsPerArm7; i++) {
+                    const distance = (i / starsPerArm7) * seventhGalaxySize;
+                    
+                    const thinningFactor = Math.max(0, (distance / seventhGalaxySize - 0.7) / 0.3);
+                    if (Math.random() < thinningFactor) {
+                        continue;
+                    }
+                    
+                    const angle = armDirection7 * armTightness7 * Math.log(distance > 0 ? distance : 0.001) + (Math.random() - 0.5) * 0.5 + armOffsetAngle;
+
+                    const x = distance * Math.cos(angle);
+                    const y = (Math.random() - 0.5) * seventhDiskThickness * (1 - distance / seventhGalaxySize);
+                    const z = distance * Math.sin(angle);
+
+                    const distanceXY = Math.sqrt(x*x + z*z);
+                    if (distanceXY < coreRadius) {
+                        continue; 
+                    }
+
+                    const starIndex = armIndex * starsPerArm7 + i;
+                    positions7[starIndex * 3] = x;
+                    positions7[starIndex * 3 + 1] = y;
+                    positions7[starIndex * 3 + 2] = z;
+
+                    const hue = 0.5 + (distance / seventhGalaxySize) * 0.2; // 초록-시안 계열
+                    const saturation = 0.8 + Math.random() * 0.2;
+                    const lightness = 0.6 + (distance / seventhGalaxySize) * 0.3;
+                    color7.setHSL(hue, saturation, lightness);
+
+                    colors7[starIndex * 3] = color7.r;
+                    colors7[starIndex * 3 + 1] = color7.g;
+                    colors7[starIndex * 3 + 2] = color7.b;
+                }
+            }
+            
+            galaxyStarsGeometry7.setAttribute('position', new THREE.BufferAttribute(positions7, 3));
+            galaxyStarsGeometry7.setAttribute('color', new THREE.BufferAttribute(colors7, 3));
+
+            const galaxyMaterial7 = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+
+            const galaxyPoints7 = new THREE.Points(galaxyStarsGeometry7, galaxyMaterial7);
+            scene.add(galaxyPoints7);
+
+
+
+            // --- Camera Position Setup ---
+            camera.position.set(0, 300, 0); // View from above, closer to the wireframe
+            
+            // --- Mouse Controls (OrbitControls) ---
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // --- Window Resize Handler ---
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+            
+            // --- Animation Loop ---
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                // Star twinkling effect
+                const time = Date.now() * 0.00005;
+                stars.children.forEach(star => {
+                    const brightness = Math.sin(star.userData.twinkleSpeed * time + star.userData.twinkleOffset) * 0.5 + 0.5;
+                    star.material.opacity = brightness;
+                });
+                
+                // 은하계 회전
+                galaxyPoints.rotation.y -= 0.0005;
+                galaxyPoints2.rotation.y = galaxyPoints.rotation.y;
+                galaxyPoints3.rotation.y = galaxyPoints.rotation.y;
+                galaxyPoints4.rotation.y = galaxyPoints.rotation.y;
+                galaxyPoints5.rotation.y = galaxyPoints.rotation.y; 
+                galaxyPoints6.rotation.y = galaxyPoints.rotation.y;
+                galaxyPoints7.rotation.y = galaxyPoints.rotation.y; 
+                scatteredStars.rotation.y = galaxyPoints.rotation.y;
+                innerCoreStars.rotation.y = galaxyPoints.rotation.y;
+
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            
+            // Start the animation after all setup
+            animate();
+        });
+    </script>
+</body>
+</html>
