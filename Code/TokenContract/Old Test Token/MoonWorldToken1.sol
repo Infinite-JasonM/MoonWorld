@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// MoonWorldToken1.sol
+// MoonWorldTestToken1.sol
 // pragma solidity ^0.5.0;
 
 pragma solidity ^0.5.8;
@@ -14,7 +14,7 @@ import "./TRC20Detailed.sol";
  * Note they can later distribute these tokens as they wish using `transfer` and other
  * `TRC20` functions.
  */
-contract SimpleToken is Context, TRC20, TRC20Detailed {
+contract MoonWorldTestToken1 is Context, TRC20, TRC20Detailed {
 
     /**
      * @dev Constructor that gives _msgSender() all of existing tokens.
