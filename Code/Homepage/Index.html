@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>가상의 달 세계</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            @apply bg-slate-900 text-slate-100;
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center h-screen w-screen overflow-hidden">
+
+    <!-- 3D 캔버스 -->
+    <canvas id="moon-canvas" class="w-full h-full"></canvas>
+
+    <!-- UI 오버레이 -->
+    <div class="absolute inset-0 flex flex-col items-center justify-center p-4 pointer-events-none">
+        <h1 class="text-3xl sm:text-4xl font-bold mb-2 text-center text-slate-50">가상의 달 세계</h1>
+        <p class="text-lg text-center text-slate-300">
+            마우스를 드래그하여 달을 회전시키고, 블록을 클릭하여 정보를 확인하세요.
+        </p>
+    </div>
+
+    <!-- 블록 정보 팝업 (초기에는 숨김) -->
+    <div id="block-info-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-70 transition-opacity duration-300">
+        <div class="bg-slate-800 rounded-xl shadow-lg p-6 sm:p-8 w-full max-w-sm sm:max-w-md pointer-events-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="modal-title" class="text-2xl font-bold text-emerald-400">블록 정보</h2>
+                <button id="close-modal" class="p-1 rounded-full text-slate-400 hover:bg-slate-700 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <p id="block-id-display" class="text-slate-300 text-sm">블록 ID: #000</p>
+                <div>
+                    <span class="font-semibold text-slate-400">면적:</span> <span id="block-area" class="text-slate-200">N/A</span>
+                </div>
+                <div>
+                    <span class="font-semibold text-slate-400">지질 상태:</span> <span id="block-geology" class="text-slate-200">N/A</span>
+                </div>
+                <div>
+                    <span class="font-semibold text-slate-400">발전 상태:</span> <span id="block-status" class="text-slate-200">N/A</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 3D 씬 설정 ---
+            const canvas = document.getElementById('moon-canvas');
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000); // 씬 배경을 검은색으로 설정
+            
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // --- 조명 설정 ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.1); // 은은한 주변광
+            scene.add(ambientLight);
+            
+            // 주 조명 (태양광)
+            const mainLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            mainLight.position.set(5, 5, 5).normalize();
+            scene.add(mainLight);
+
+            // 보조 조명 (반사광)
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.2);
+            fillLight.position.set(-5, -5, -5).normalize();
+            scene.add(fillLight);
+
+            // --- 별이 빛나는 우주 배경 생성 ---
+            const starCount = 5000; // 별의 개수를 조정하여 성능을 최적화할 수 있습니다.
+            const starGeometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+            const color = new THREE.Color();
+            
+            for (let i = 0; i < starCount; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = (Math.random() - 0.5) * 2000;
+                positions.push(x, y, z);
+            
+                const r = Math.random() * 0.5 + 0.5;
+                const g = Math.random() * 0.5 + 0.5;
+                const b = Math.random() * 0.5 + 0.5;
+                color.setRGB(r, g, b);
+                colors.push(color.r, color.g, color.b);
+            }
+            
+            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            starGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+            const starMaterial = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true
+            });
+            
+            const stars = new THREE.Points(starGeometry, starMaterial);
+            scene.add(stars);
+            
+            // --- 달 객체 생성 ---
+            const moonRadius = 5;
+            const moonGeometry = new THREE.SphereGeometry(moonRadius, 64, 64);
+            const textureLoader = new THREE.TextureLoader();
+            
+            // 유효하고 고해상도인 달 텍스처 URL을 사용합니다.
+            // 아래는 NASA에서 제공하는 공용 텍스처입니다.
+            // 만약 나중에 텍스처를 바꾸고 싶으시다면, '구형 텍스처(Spherical Texture)'를 검색해 나온 이미지의 URL을 여기에 붙여넣으세요.
+            const moonTextureUrl = '/lroc_color_poles_2k.png';
+            const moonTexture = textureLoader.load(
+                moonTextureUrl,
+                () => { console.log('달 텍스처 로드 완료!'); },
+                undefined,
+                (error) => { console.error('달 텍스처 로드 실패:', error); }
+            );
+
+            const moonMaterial = new THREE.MeshStandardMaterial({ map: moonTexture });
+            const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+            scene.add(moon);
+
+            // --- 카메라 위치 설정 ---
+            camera.position.z = 10;
+            
+            // --- 마우스 조작 (OrbitControls) ---
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // --- 마우스 오버(Hover) 효과를 위한 변수 ---
+            let isHoveringMoon = false;
+
+            // --- Raycaster (클릭 및 호버 감지) ---
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            // --- 가상 블록 데이터 ---
+            const blockData = {};
+            for (let i = 0; i < 50; i++) {
+                blockData[`block-${i}`] = {
+                    area: `${(Math.random() * 100 + 1).toFixed(2)} km²`,
+                    geology: ['화산암', '퇴적암', '현무암', '운석 충돌 지형'][Math.floor(Math.random() * 4)],
+                    status: ['미개발', '개발 중', '개발 완료'][Math.floor(Math.random() * 3)]
+                };
+            }
+
+            function onMouseMove(event) {
+                // 마우스 위치 정규화
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects([moon]);
+                
+                if (intersects.length > 0) {
+                    if (!isHoveringMoon) {
+                        isHoveringMoon = true;
+                        document.body.style.cursor = 'pointer';
+                        moon.material.emissiveIntensity = 0.2; // 은은하게 빛나는 효과
+                    }
+                } else {
+                    if (isHoveringMoon) {
+                        isHoveringMoon = false;
+                        document.body.style.cursor = 'default';
+                        moon.material.emissiveIntensity = 0; // 효과 제거
+                    }
+                }
+            }
+            
+            function onMouseClick(event) {
+                if (document.getElementById('block-info-modal').contains(event.target)) {
+                    return;
+                }
+                
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects([moon]);
+                
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    const uv = hit.uv;
+                    const blockX = Math.floor(uv.x * 10);
+                    const blockY = Math.floor(uv.y * 5);
+                    const blockId = `block-${blockX * 5 + blockY}`;
+                    
+                    const data = blockData[blockId] || { area: '미지', geology: '미지', status: '미개발' };
+                    
+                    document.getElementById('modal-title').textContent = `블록 정보: ${blockId}`;
+                    document.getElementById('block-id-display').textContent = `블록 ID: ${blockId}`;
+                    document.getElementById('block-area').textContent = data.area;
+                    document.getElementById('block-geology').textContent = data.geology;
+                    document.getElementById('block-status').textContent = data.status;
+                    
+                    document.getElementById('block-info-modal').classList.remove('hidden');
+                }
+            }
+            
+            window.addEventListener('mousemove', onMouseMove, false);
+            window.addEventListener('click', onMouseClick, false);
+            
+            // --- 팝업 닫기 기능 ---
+            const blockInfoModal = document.getElementById('block-info-modal');
+            const closeModalButton = document.getElementById('close-modal');
+
+            closeModalButton.addEventListener('click', () => {
+                blockInfoModal.classList.add('hidden');
+            });
+
+            blockInfoModal.addEventListener('click', (event) => {
+                if (event.target === blockInfoModal) {
+                    blockInfoModal.classList.add('hidden');
+                }
+            });
+
+            // --- 윈도우 크기 변경 이벤트 핸들러 ---
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+            
+            // --- 애니메이션 루프 ---
+            function animate() {
+                requestAnimationFrame(animate);
+                moon.rotation.y += 0.0005;
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            
+            // 윈도우 로드 후 애니메이션 시작
+            window.onload = function () {
+                animate();
+            }
+        });
+    </script>
+</body>
+</html>
