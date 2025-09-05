@@ -88,38 +88,26 @@
             fillLight.position.set(-5, -5, -5).normalize();
             scene.add(fillLight);
 
-            // --- 별이 빛나는 우주 배경 생성 ---
-            const starCount = 5000; // 별의 개수를 조정하여 성능을 최적화할 수 있습니다.
-            const starGeometry = new THREE.BufferGeometry();
-            const positions = [];
-            const colors = [];
-            const color = new THREE.Color();
-            
+            // --- 구형 별이 빛나는 우주 배경 생성 ---
+            const starCount = 1000; // 성능을 위해 별의 개수를 조정했습니다.
+            const starGeometry = new THREE.SphereGeometry(0.7, 8, 8); // 작은 구체
+            const starMaterial = new THREE.MeshBasicMaterial();
+            const stars = new THREE.Group();
+
             for (let i = 0; i < starCount; i++) {
-                const x = (Math.random() - 0.5) * 2000;
-                const y = (Math.random() - 0.5) * 2000;
-                const z = (Math.random() - 0.5) * 2000;
-                positions.push(x, y, z);
-            
+                const star = new THREE.Mesh(starGeometry, starMaterial.clone());
+                star.position.x = (Math.random() - 0.5) * 2000;
+                star.position.y = (Math.random() - 0.5) * 2000;
+                star.position.z = (Math.random() - 0.5) * 2000;
+
+                // 별의 색상을 랜덤하게 설정
                 const r = Math.random() * 0.5 + 0.5;
                 const g = Math.random() * 0.5 + 0.5;
                 const b = Math.random() * 0.5 + 0.5;
-                color.setRGB(r, g, b);
-                colors.push(color.r, color.g, color.b);
-            }
-            
-            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-            starGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                star.material.color.setRGB(r, g, b);
 
-            const starMaterial = new THREE.PointsMaterial({
-                size: 2,
-                vertexColors: true,
-                transparent: true,
-                blending: THREE.AdditiveBlending,
-                sizeAttenuation: true
-            });
-            
-            const stars = new THREE.Points(starGeometry, starMaterial);
+                stars.add(star);
+            }
             scene.add(stars);
             
             // --- 달 객체 생성 ---
