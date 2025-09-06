@@ -28,10 +28,10 @@
     <canvas id="moon-canvas" class="w-full h-full"></canvas>
 
     <!-- UI 오버레이 -->
-    <div class="absolute inset-0 flex flex-col items-center justify-center p-4 pointer-events-none">
-        <h1 class="text-3xl sm:text-4xl font-bold mb-2 text-center text-slate-50">가상의 달 세계</h1>
+    <div class="absolute top-0 left-0 right-0 flex flex-col items-center p-4 pointer-events-none">
+        <h1 class="text-3xl sm:text-4xl font-bold mb-2 text-center text-slate-50">가상의 우주</h1>
         <p class="text-lg text-center text-slate-300">
-            마우스를 드래그하여 달을 회전시키고, 블록을 클릭하여 정보를 확인하세요.
+            마우스를 드래그하여 시점을 변경하세요.
         </p>
     </div>
 
@@ -64,33 +64,31 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- 3D 씬 설정 ---
+            // --- 3D Scene Setup ---
             const canvas = document.getElementById('moon-canvas');
             const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000); // 씬 배경을 검은색으로 설정
+            scene.background = new THREE.Color(0x000000); 
             
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000); 
             const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             
-            // --- 조명 설정 ---
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.1); // 은은한 주변광
+            // --- Lighting Setup ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.1); 
             scene.add(ambientLight);
             
-            // 주 조명 (태양광)
             const mainLight = new THREE.DirectionalLight(0xffffff, 0.9);
             mainLight.position.set(5, 5, 5).normalize();
             scene.add(mainLight);
 
-            // 보조 조명 (반사광)
             const fillLight = new THREE.DirectionalLight(0xffffff, 0.2);
             fillLight.position.set(-5, -5, -5).normalize();
             scene.add(fillLight);
 
-            // --- 구형 별이 빛나는 우주 배경 생성 ---
-            const starCount = 3000; // 성능을 위해 별의 개수를 조정했습니다.
-            const starGeometry = new THREE.SphereGeometry(0.7, 8, 8); // 작은 구체
+            // --- Creating a basic starry background ---
+            const starCount = 1000;
+            const starGeometry = new THREE.SphereGeometry(0.7, 32, 32); 
             const starMaterial = new THREE.MeshBasicMaterial();
             const stars = new THREE.Group();
 
@@ -100,145 +98,230 @@
                 star.position.y = (Math.random() - 0.5) * 2000;
                 star.position.z = (Math.random() - 0.5) * 2000;
 
-                // 별의 색상을 랜덤하게 설정
                 const r = Math.random() * 0.5 + 0.5;
                 const g = Math.random() * 0.5 + 0.5;
                 const b = Math.random() * 0.5 + 0.5;
                 star.material.color.setRGB(r, g, b);
 
-                // 별 반짝임 속도를 훨씬 빠르게 설정
                 star.userData.twinkleSpeed = Math.random() * 100 + 0.1;
                 star.userData.twinkleOffset = Math.random() * Math.PI * 2;
-                star.material.opacity = Math.random() * 0.5 + 0.5; // 초기 투명도 설정
+                star.material.opacity = Math.random() * 0.5 + 0.5;
                 stars.add(star);
             }
             scene.add(stars);
+
+            // --- Galaxy Creation (Main Group) ---
+            const galaxyGroup = new THREE.Group();
+            scene.add(galaxyGroup);
+            galaxyGroup.position.set(0, 0, -1500); // 은하계 위치를 뒤로 이동
+            galaxyGroup.rotation.x = Math.PI / 8; // X축으로 약간 기울이기
             
-            // --- 달 객체 생성 ---
+            const galaxySize = 200;
+            const diskThickness = 20;
+            const coreRadius = 50;
+
+            const armSettings = [
+                { arms: 8, stars: 3000, size: 1.0, thickness: 1.0, tightness: 1.0, direction: -1, hueRange: [0.95, 0.5] },
+                { arms: 8, stars: 3000, size: 1.5, thickness: 0.8, tightness: 0.8, direction: -1, hueRange: [0.95, 0.5] },
+                { arms: 4, stars: 4000, size: 1.8, thickness: 1.2, tightness: 0.8, direction: -1, hueRange: [0.95, 0.5] },
+                { arms: 5, stars: 3000, size: 1.6, thickness: 0.5, tightness: 0.5, direction: -1, hueRange: [0.95, 0.5] },
+                { arms: 7, stars: 3000, size: 1.9, thickness: 0.9, tightness: 0.7, direction: -1, hueRange: [0.95, 0.5] },
+                { arms: 6, stars: 2500, size: 2.1, thickness: 1.5, tightness: 0.4, direction: -1, hueRange: [0.7, 0.1] },
+                { arms: 12, stars: 2000, size: 2.3, thickness: 0.7, tightness: 0.3, direction: -1, hueRange: [0.5, 0.2] }
+            ];
+
+            armSettings.forEach(settings => {
+                const totalGalaxyStars = settings.arms * settings.stars;
+                const galaxyStarsGeometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(totalGalaxyStars * 3);
+                const colors = new Float32Array(totalGalaxyStars * 3);
+                const color = new THREE.Color();
+
+                for (let armIndex = 0; armIndex < settings.arms; armIndex++) {
+                    const armOffsetAngle = (Math.PI * 2 / settings.arms) * armIndex;
+                    for (let i = 0; i < settings.stars; i++) {
+                        const distance = (i / settings.stars) * (galaxySize * settings.size);
+                        
+                        const densityThreshold = 0.7;
+                        const thinningFactor = Math.max(0, (distance / (galaxySize * settings.size) - densityThreshold) / (1 - densityThreshold));
+                        if (Math.random() < thinningFactor) {
+                            continue;
+                        }
+
+                        const angle = settings.direction * settings.tightness * Math.log(distance > 0 ? distance : 0.001) + (Math.random() - 0.5) * 0.2 + armOffsetAngle;
+
+                        const x = distance * Math.cos(angle);
+                        const y = (Math.random() - 0.5) * (diskThickness * settings.thickness) * (1 - distance / (galaxySize * settings.size));
+                        const z = distance * Math.sin(angle);
+
+                        const distanceXY = Math.sqrt(x*x + z*z);
+                        if (distanceXY < coreRadius) {
+                            continue; 
+                        }
+
+                        const starIndex = armIndex * settings.stars + i;
+                        positions[starIndex * 3] = x;
+                        positions[starIndex * 3 + 1] = y;
+                        positions[starIndex * 3 + 2] = z;
+
+                        const hue = settings.hueRange[0] + (distance / (galaxySize * settings.size)) * (settings.hueRange[1] - settings.hueRange[0]);
+                        const saturation = 0.8 + Math.random() * 0.2;
+                        const lightness = 0.7 + Math.random() * 0.2;
+                        color.setHSL(hue % 1, saturation, lightness);
+                        
+                        colors[starIndex * 3] = color.r;
+                        colors[starIndex * 3 + 1] = color.g;
+                        colors[starIndex * 3 + 2] = color.b;
+                    }
+                }
+
+                galaxyStarsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                galaxyStarsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                const galaxyMaterial = new THREE.PointsMaterial({ size: 2, vertexColors: true, transparent: true, opacity: 0.9, sizeAttenuation: true });
+                galaxyGroup.add(new THREE.Points(galaxyStarsGeometry, galaxyMaterial));
+            });
+            
+            // --- 불규칙하게 흩어진 별들 추가 ---
+            const scatteredStarCount = 10000;
+            const scatteredStarsGeometry = new THREE.BufferGeometry();
+            const scatteredPositions = new Float32Array(scatteredStarCount * 3);
+            const scatteredColors = new Float32Array(scatteredStarCount * 3);
+            const scatteredStarColor = new THREE.Color();
+
+            for (let i = 0; i < scatteredStarCount; i++) {
+                let x, y, z;
+                let distanceXY;
+                const maxDistance = galaxySize * 3; // 불규칙 별들의 범위를 나선팔보다 넓게 조정합니다.
+
+                do {
+                    const radius = Math.sqrt(Math.random()) * maxDistance;
+                    const angle = Math.random() * Math.PI * 2;
+                    x = radius * Math.cos(angle);
+                    z = radius * Math.sin(angle);
+                    y = (Math.random() - 0.5) * diskThickness;
+                    distanceXY = Math.sqrt(x * x + z * z);
+                } while (distanceXY < coreRadius);
+                
+                scatteredPositions[i * 3] = x;
+                scatteredPositions[i * 3 + 1] = y;
+                scatteredPositions[i * 3 + 2] = z;
+                
+                const lightness = 0.8 + Math.random() * 0.2;
+                scatteredStarColor.setHSL(0, 0, lightness);
+                
+                scatteredColors[i * 3] = scatteredStarColor.r;
+                scatteredColors[i * 3 + 1] = scatteredStarColor.g;
+                scatteredColors[i * 3 + 2] = scatteredStarColor.b;
+            }
+
+            scatteredStarsGeometry.setAttribute('position', new THREE.BufferAttribute(scatteredPositions, 3));
+            scatteredStarsGeometry.setAttribute('color', new THREE.BufferAttribute(scatteredColors, 3));
+            const scatteredStarsMaterial = new THREE.PointsMaterial({ size: 2, vertexColors: true, transparent: true, opacity: 0.8, sizeAttenuation: true });
+            const scatteredStars = new THREE.Points(scatteredStarsGeometry, scatteredStarsMaterial);
+            galaxyGroup.add(scatteredStars);
+
+            // --- 은하 중심축 내부의 불규칙 별들 (100개) ---
+            const innerStarCount = 100;
+            const innerStarsGeometry = new THREE.BufferGeometry();
+            const innerPositions = new Float32Array(innerStarCount * 3);
+            const innerColors = new Float32Array(innerStarCount * 3);
+            const coreHeight = galaxySize * 0.6; 
+            const innerColor = new THREE.Color();
+
+            for (let i = 0; i < innerStarCount; i++) {
+                const radius = Math.random() * coreRadius;
+                const angle = Math.random() * Math.PI * 2;
+                
+                innerPositions[i * 3] = radius * Math.cos(angle);
+                innerPositions[i * 3 + 1] = (Math.random() - 0.5) * coreHeight;
+                innerPositions[i * 3 + 2] = radius * Math.sin(angle);
+                
+                const lightness = 0.8 + Math.random() * 0.2;
+                innerColor.setHSL(0, 0, lightness);
+                
+                innerColors[i * 3] = innerColor.r;
+                innerColors[i * 3 + 1] = innerColor.g;
+                innerColors[i * 3 + 2] = innerColor.b;
+            }
+            
+            innerStarsGeometry.setAttribute('position', new THREE.BufferAttribute(innerPositions, 3));
+            innerStarsGeometry.setAttribute('color', new THREE.BufferAttribute(innerColors, 3));
+            const innerStarsMaterial = new THREE.PointsMaterial({ size: 2, vertexColors: true, transparent: true, opacity: 1.0, sizeAttenuation: true });
+            const innerCoreStars = new THREE.Points(innerStarsGeometry, innerStarsMaterial);
+            galaxyGroup.add(innerCoreStars);
+
+            // --- Moon and objects group ---
+            const moonGroup = new THREE.Group();
+            scene.add(moonGroup);
+
             const moonRadius = 5;
             const moonGeometry = new THREE.SphereGeometry(moonRadius, 64, 64);
             const textureLoader = new THREE.TextureLoader();
-            
-            // 유효하고 고해상도인 달 텍스처 URL을 사용합니다.
-            // 아래는 NASA에서 제공하는 공용 텍스처입니다.
-            // 만약 나중에 텍스처를 바꾸고 싶으시다면, '구형 텍스처(Spherical Texture)'를 검색해 나온 이미지의 URL을 여기에 붙여넣으세요.
-            
-            // const moonTextureUrl = './assets/textures/lroc_color_poles_2k.png';
             const moonTextureUrl = 'https://infinite-jasonm.github.io/MoonWorld/MoonWorld-Website/assets/textures/lroc_color_poles_2k.png';
-            const moonTexture = textureLoader.load(
-                moonTextureUrl,
-                () => { console.log('달 텍스처 로드 완료!'); },
-                undefined,
-                (error) => { console.error('달 텍스처 로드 실패:', error); }
-            );
+            const moonTexture = textureLoader.load(moonTextureUrl);
 
             const moonMaterial = new THREE.MeshStandardMaterial({ map: moonTexture });
             const moon = new THREE.Mesh(moonGeometry, moonMaterial);
-            scene.add(moon);
+            moonGroup.add(moon);
 
-            // --- 카메라 위치 설정 ---
-            camera.position.z = 10;
-            
-            // --- 마우스 조작 (OrbitControls) ---
-            const controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-
-            // --- 마우스 오버(Hover) 효과를 위한 변수 ---
-            let isHoveringObject = false;
-
-            // --- Raycaster (클릭 및 호버 감지) ---
-            const raycaster = new THREE.Raycaster();
-            const mouse = new THREE.Vector2();
-            
             // --- 달 표면 위에 오브젝트 생성 ---
             const moonObjects = new THREE.Group();
-            scene.add(moonObjects);
+            moonGroup.add(moonObjects);
 
-            // 착륙선 생성
             function createLander() {
                 const landerGroup = new THREE.Group();
-                
-                // 몸체
-                const body = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.5, 0.5, 0.5),
-                    new THREE.MeshStandardMaterial({ color: 0xc0c0c0 })
-                );
+                const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0xc0c0c0 }));
                 landerGroup.add(body);
-                
-                // 다리
                 const legGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8);
                 const legMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
-                
                 const leg1 = new THREE.Mesh(legGeometry, legMaterial);
                 leg1.position.set(-0.2, -0.4, -0.2);
                 landerGroup.add(leg1);
-                
                 const leg2 = new THREE.Mesh(legGeometry, legMaterial);
                 leg2.position.set(0.2, -0.4, -0.2);
                 landerGroup.add(leg2);
-                
                 const leg3 = new THREE.Mesh(legGeometry, legMaterial);
                 leg3.position.set(-0.2, -0.4, 0.2);
                 landerGroup.add(leg3);
-
                 const leg4 = new THREE.Mesh(legGeometry, legMaterial);
                 leg4.position.set(0.2, -0.4, 0.2);
                 landerGroup.add(leg4);
-
                 landerGroup.name = "lander";
                 return landerGroup;
             }
 
-            // 기지 생성
             function createBase() {
                 const baseGroup = new THREE.Group();
-
-                // 돔 형태의 주거지
-                const dome = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.7, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.5),
-                    new THREE.MeshStandardMaterial({ color: 0x1a75ff, transparent: true, opacity: 0.8 })
-                );
+                const dome = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.5), new THREE.MeshStandardMaterial({ color: 0x1a75ff, transparent: true, opacity: 0.8 }));
                 dome.position.y = 0.5;
                 baseGroup.add(dome);
-                
-                // 모듈
-                const module = new THREE.Mesh(
-                    new THREE.BoxGeometry(2, 0.5, 0.5),
-                    new THREE.MeshStandardMaterial({ color: 0x808080 })
-                );
+                const module = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0x808080 }));
                 baseGroup.add(module);
-
                 baseGroup.name = "base";
                 return baseGroup;
             }
 
-            // 달 표면의 위치를 계산하는 함수
             function getMoonSurfacePosition(latitude, longitude) {
                 const phi = (90 - latitude) * Math.PI / 180;
                 const theta = (longitude + 180) * Math.PI / 180;
-                
                 const x = -moonRadius * Math.sin(phi) * Math.cos(theta);
                 const y = moonRadius * Math.cos(phi);
                 const z = moonRadius * Math.sin(phi) * Math.sin(theta);
-                
                 return new THREE.Vector3(x, y, z);
             }
 
-            // 착륙선과 기지 배치
             const lander = createLander();
             const landerPosition = getMoonSurfacePosition(20, -100);
             lander.position.copy(landerPosition);
-            lander.lookAt(new THREE.Vector3(0, 0, 0)); // 달의 중심을 바라보게 회전
+            lander.lookAt(new THREE.Vector3(0, 0, 0));
             moonObjects.add(lander);
 
             const base = createBase();
             const basePosition = getMoonSurfacePosition(-30, 150);
             base.position.copy(basePosition);
-            base.lookAt(new THREE.Vector3(0, 0, 0)); // 달의 중심을 바라보게 회전
+            base.lookAt(new THREE.Vector3(0, 0, 0));
             moonObjects.add(base);
 
-            // --- 새로운 명소 데이터 ---
             const pointsOfInterest = [
                 { name: "고요의 바다", lat: 0.8, lon: 23.5, description: "아폴로 11호가 처음 착륙한 장소로, 인류의 첫 발자국이 남겨진 곳입니다.", type: 'mare' },
                 { name: "티코 분화구", lat: -43.3, lon: -11.2, description: "달에서 가장 밝은 분화구 중 하나로, 거대한 방사형 줄무늬가 특징입니다.", type: 'crater' },
@@ -246,30 +329,22 @@
             ];
 
             const poiGroup = new THREE.Group();
-            scene.add(poiGroup);
+            moonGroup.add(poiGroup);
 
             pointsOfInterest.forEach(poi => {
                 const poiGeometry = new THREE.IcosahedronGeometry(0.2, 1);
                 const poiMaterial = new THREE.MeshStandardMaterial({ color: 0xffa500, emissive: 0xffa500, emissiveIntensity: 0.5 });
                 const poiMesh = new THREE.Mesh(poiGeometry, poiMaterial);
-
                 const position = getMoonSurfacePosition(poi.lat, poi.lon);
                 poiMesh.position.copy(position);
                 poiMesh.lookAt(new THREE.Vector3(0, 0, 0));
-
-                // userData에 명소 정보 저장
                 poiMesh.userData = poi;
                 poiGroup.add(poiMesh);
             });
 
-
-            // --- 가상의 블록 데이터 (내부 코드에 고정) ---
-            // 나중에 Firebase Firestore 같은 데이터베이스를 사용하고 싶다면,
-            // 이 blockData 변수를 서버에서 가져온 데이터로 교체하세요.
-            // 예: const blockData = await fetch('YOUR_SERVER_URL').then(res => res.json());
             const blockData = {};
-            const segmentsX = 60; // 가로 블록 개수
-            const segmentsY = 30; // 세로 블록 개수
+            const segmentsX = 60;
+            const segmentsY = 30;
             
             for (let x = 0; x < segmentsX; x++) {
                 for (let y = 0; y < segmentsY; y++) {
@@ -282,32 +357,21 @@
                 }
             }
 
-            // --- 블록 시각화 그리기 (선으로만 표현) ---
             const blockVisualizations = new THREE.Group();
-            scene.add(blockVisualizations);
-            
-            // 달의 기하학적 구조를 이용한 그리드 생성
-            const gridGeometry = new THREE.SphereGeometry(moonRadius * 1.001, segmentsX, segmentsY); // 달보다 약간 크게 만들어 겹치지 않게 함
+            moonGroup.add(blockVisualizations);
+            const gridGeometry = new THREE.SphereGeometry(moonRadius * 1.001, segmentsX, segmentsY); 
             const edges = new THREE.EdgesGeometry(gridGeometry);
-            const lineMaterial = new THREE.LineBasicMaterial({
-                color: 0x64748b, // slate-500
-                transparent: true,
-                opacity: 0.2 // 투명도 조정
-            });
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.2 });
             const gridLines = new THREE.LineSegments(edges, lineMaterial);
             blockVisualizations.add(gridLines);
 
-            // --- 클릭 가능한 오브젝트 목록 ---
             const interactiveObjects = [moon, lander, base, ...poiGroup.children];
 
             function onMouseMove(event) {
-                // 마우스 위치 정규화
                 mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
                 mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
                 raycaster.setFromCamera(mouse, camera);
                 const intersects = raycaster.intersectObjects(interactiveObjects, true);
-                
                 if (intersects.length > 0) {
                     if (!isHoveringObject) {
                         isHoveringObject = true;
@@ -330,16 +394,13 @@
                 if (document.getElementById('block-info-modal').contains(event.target)) {
                     return;
                 }
-                
                 raycaster.setFromCamera(mouse, camera);
                 const intersects = raycaster.intersectObjects(interactiveObjects, true);
-                
                 if (intersects.length > 0) {
                     const hit = intersects[0];
                     const object = hit.object.parent ? hit.object.parent.name : hit.object.name || hit.object.userData.name;
                     const hitUserData = hit.object.userData;
 
-                    // 팝업 내용 업데이트
                     let title, idDisplay, area, geology, status;
                     if (object === 'lander') {
                         title = '착륙선 정보';
@@ -353,20 +414,18 @@
                         area = '2.5 km²';
                         geology = '현무암';
                         status = '운영 중';
-                    } else if (hitUserData.type) { // 명소 데이터가 있는 경우
+                    } else if (hitUserData.type) { 
                         const poi = hitUserData;
                         title = poi.name;
                         idDisplay = poi.description;
                         area = `위도: ${poi.lat.toFixed(2)}°, 경도: ${poi.lon.toFixed(2)}°`;
                         geology = 'N/A';
                         status = '명소';
-                    } else if (object === 'moon') { // 달 표면을 클릭한 경우
-                        // 클릭 지점의 3D 좌표를 위도/경도로 변환
+                    } else if (object === 'moon') {
                         const hitPoint = hit.point;
                         const lat = (Math.acos(hitPoint.y / moonRadius) * 180 / Math.PI) - 90;
                         const lon = (Math.atan2(hitPoint.z, hitPoint.x) * 180 / Math.PI);
                         
-                        // 위도/경도를 기반으로 블록 ID 계산
                         const blockX = Math.floor((lon + 180) / (360 / segmentsX));
                         const blockY = Math.floor((lat + 90) / (180 / segmentsY));
                         const blockId = `block-${blockX}-${blockY}`;
@@ -378,217 +437,127 @@
                         geology = data.geology;
                         status = data.status;
                     }
-
                     document.getElementById('modal-title').textContent = title;
                     document.getElementById('block-id-display').textContent = idDisplay;
                     document.getElementById('block-area').textContent = area;
                     document.getElementById('block-geology').textContent = geology;
                     document.getElementById('block-status').textContent = status;
-                    
                     document.getElementById('block-info-modal').classList.remove('hidden');
                 }
             }
-            
             window.addEventListener('mousemove', onMouseMove, false);
             window.addEventListener('click', onMouseClick, false);
             
-            // --- 팝업 닫기 기능 ---
             const blockInfoModal = document.getElementById('block-info-modal');
             const closeModalButton = document.getElementById('close-modal');
 
-            closeModalButton.addEventListener('click', () => {
-                blockInfoModal.classList.add('hidden');
-            });
-
+            closeModalButton.addEventListener('click', () => { blockInfoModal.classList.add('hidden'); });
             blockInfoModal.addEventListener('click', (event) => {
-                if (event.target === blockInfoModal) {
-                    blockInfoModal.classList.add('hidden');
-                }
+                if (event.target === blockInfoModal) { blockInfoModal.classList.add('hidden'); }
             });
 
-            // --- 윈도우 크기 변경 이벤트 핸들러 ---
+            // --- Window Resize Handler ---
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
             
-            // --- 유성 객체 관련 변수 ---
-            // 여러 유성들을 관리하기 위한 배열
-            const meteors = [];
-            let lastMeteorTime = Date.now();
-            const meteorSpawnInterval = 5000; // 유성 출현 빈도: 5초마다 생성 시도
+            // --- Optimized Meteor System ---
+            const meteorCount = 10;
+            const meteorGroup = new THREE.Group();
+            scene.add(meteorGroup);
 
-            // --- 유성 생성 함수 ---
+            const meteorData = [];
+            const particleCount = 200;
+            const particleTrailGeometry = new THREE.BufferGeometry();
+            const particlePositions = new Float32Array(particleCount * 3);
+            const particleColors = new Float32Array(particleCount * 3);
+            const particleOpacities = new Float32Array(particleCount);
+
+            const particleMaterial = new THREE.PointsMaterial({
+                size: 2,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+
+            const particles = new THREE.Points(particleTrailGeometry, particleMaterial);
+            meteorGroup.add(particles);
+
             function createMeteor() {
-                // 유성 머리 크기를 2배~5배로 랜덤하게 설정
-                const meteorSize = (1 + Math.random() * 1.5) * 2.5;
-                const meteorHeadGeometry = new THREE.SphereGeometry(meteorSize, 4, 4);
+                const startPos = new THREE.Vector3(
+                    (Math.random() - 0.5) * 5000,
+                    (Math.random() - 0.5) * 5000,
+                    (Math.random() - 0.5) * 5000
+                );
+                const endPos = new THREE.Vector3(
+                    (Math.random() - 0.5) * 5000,
+                    (Math.random() - 0.5) * 5000,
+                    (Math.random() - 0.5) * 5000
+                );
+                const direction = endPos.clone().sub(startPos).normalize();
+                const speed = 5 + Math.random() * 10;
                 
-                // 유성 머리의 색상 (유성당 한가지 색상)
                 const baseColor = new THREE.Color(Math.random(), Math.random(), Math.random());
-                const meteorHeadMaterial = new THREE.MeshBasicMaterial({ 
-                    color: baseColor, 
-                    emissive: baseColor, 
-                    emissiveIntensity: 1 
-                });
-                const meteorMesh = new THREE.Mesh(meteorHeadGeometry, meteorHeadMaterial);
-                scene.add(meteorMesh);
-
-                // 유성 시작 위치 및 속도 설정 (무작위)
-                const startPosition = new THREE.Vector3(
-                    (Math.random() - 0.5) * 2000,
-                    (Math.random() - 0.5) * 2000,
-                    (Math.random() - 0.5) * 2000
-                );
-                
-                const endPosition = new THREE.Vector3(
-                    (Math.random() - 0.5) * 2000,
-                    (Math.random() - 0.5) * 2000,
-                    (Math.random() - 0.5) * 2000
-                );
-                
-                const direction = endPosition.clone().sub(startPosition).normalize();
-                const speed = 5 + Math.random() * 5; // 유성 속도를 현재의 1/4 수준으로 대폭 감소
-                
-                meteorMesh.position.copy(startPosition);
-                
-                // 유성 객체 정보 저장
-                const newMeteor = {
-                    mesh: meteorMesh,
+                meteorData.push({
+                    position: startPos,
                     velocity: direction.multiplyScalar(speed),
-                    tailParticles: new THREE.Group(),
-                    baseColor: baseColor
-                };
-                
-                scene.add(newMeteor.tailParticles);
-                meteors.push(newMeteor);
+                    color: baseColor,
+                    isAlive: true
+                });
+            }
+
+            for(let i = 0; i < meteorCount; i++) {
+                createMeteor();
             }
             
-            // --- 애니메이션 루프 ---
+            // --- Camera Position Setup ---
+            camera.position.set(0, 0, 150); // 달에 포커스를 맞추고 뒤로 물러납니다.
+            
+            // --- Mouse Controls (OrbitControls) ---
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // --- Animation Loop ---
             function animate() {
                 requestAnimationFrame(animate);
                 
-                // 달 자전
-                moon.rotation.y += 0.0005;
-                moonObjects.rotation.y += 0.0005;
-                poiGroup.rotation.y += 0.0005;
-                blockVisualizations.rotation.y += 0.0005;
-
-                // 유성 애니메이션
-                for (let i = meteors.length - 1; i >= 0; i--) {
-                    const meteor = meteors[i];
-                    
-                    // 유성 머리 이동
-                    meteor.mesh.position.add(meteor.velocity);
-                    
-                    // 꼬리 입자 생성 (한 프레임에 여러 개 생성하여 꼬리 길이 증가)
-                    for (let j = 0; j < 3; j++) {
-                        const tailParticleGeometry = new THREE.SphereGeometry(1, 4, 4);
-                        
-                        // 꼬리 색상 설정: 유성 기본 색상과 약간 밝은 색상 조합
-                        const isBrighter = Math.random() > 0.5;
-                        const particleColor = isBrighter 
-                            ? new THREE.Color().copy(meteor.baseColor).lerp(new THREE.Color(0xffffff), 0.2) // 약간 밝게
-                            : meteor.baseColor; // 기본 색상
-                        
-                        const tailParticleMaterial = new THREE.MeshBasicMaterial({ 
-                            color: particleColor,
-                            transparent: true, 
-                            opacity: 1 
-                        });
-                        const tailParticle = new THREE.Mesh(tailParticleGeometry, tailParticleMaterial);
-                        tailParticle.position.copy(meteor.mesh.position);
-                        meteor.tailParticles.add(tailParticle);
-                    }
-
-                    // 꼬리 입자 페이드 아웃 및 제거 (테이퍼링 효과)
-                    for (let j = meteor.tailParticles.children.length - 1; j >= 0; j--) {
-                        const particle = meteor.tailParticles.children[j];
-                        
-                        // 유성 머리와의 거리에 따라 투명도와 크기 조절
-                        const distanceToHead = particle.position.distanceTo(meteor.mesh.position);
-                        const maxDistance = 300; // 꼬리가 유지되는 최대 거리
-                        const normalizedDistance = Math.min(distanceToHead / maxDistance, 1);
-                        
-                        const opacity = 1 - Math.pow(normalizedDistance, 2); // 부드러운 페이드 아웃
-                        const scale = 3 - normalizedDistance * 0.5; // 거리에 따라 크기 감소
-
-                        particle.material.opacity = opacity;
-                        particle.scale.set(scale, scale, scale);
-
-                        // 매우 투명해지면 제거
-                        if (particle.material.opacity < 0.01) {
-                            meteor.tailParticles.remove(particle);
-                        }
-                    }
-
-                    // 유성이 화면 밖으로 나갔거나 꼬리 입자가 모두 사라졌는지 확인
-                    if (meteor.mesh.position.length() > 2500 && meteor.tailParticles.children.length === 0) {
-                        scene.remove(meteor.mesh);
-                        scene.remove(meteor.tailParticles);
-                        meteors.splice(i, 1); // 배열에서 유성 제거
-                    }
-                } 
-                
-                // 새로운 유성 생성 로직
-                if (Date.now() - lastMeteorTime > meteorSpawnInterval) {
-                    createMeteor();
-                    lastMeteorTime = Date.now();
-                }
-                
-                // 별 반짝임 효과 업데이트
+                // Star twinkling effect
                 const time = Date.now() * 0.00005;
                 stars.children.forEach(star => {
                     const brightness = Math.sin(star.userData.twinkleSpeed * time + star.userData.twinkleOffset) * 0.5 + 0.5;
-                    star.material.opacity = brightness; // opacity를 직접 조절하여 밝기 변화
+                    star.material.opacity = brightness;
                 });
+                
+                // Galaxy & Moon Rotation
+                galaxyGroup.rotation.y -= 0.0005;
+                moonGroup.rotation.y += 0.0005;
 
+                // Meteor Trail Update (Optimized)
+                const particlesPerMeteor = Math.floor(particleCount / meteorCount);
+                for (let i = 0; i < meteorData.length; i++) {
+                    const meteor = meteorData[i];
+                    if (!meteor.isAlive) continue;
+
+                    meteor.position.add(meteor.velocity);
+
+                    // Re-create a meteor if it flies out of view
+                    if (meteor.position.length() > 5000) {
+                        meteor.isAlive = false;
+                        createMeteor();
+                    }
+                }
+                
                 controls.update();
                 renderer.render(scene, camera);
             }
             
-            // 모든 설정이 완료된 후 애니메이션 시작
+            // Start the animation after all setup
             animate();
         });
     </script>
-<!-- Code injected by live-server -->
-<script>
-	// <![CDATA[  <-- For SVG support
-	if ('WebSocket' in window) {
-		(function () {
-			function refreshCSS() {
-				var sheets = [].slice.call(document.getElementsByTagName("link"));
-				var head = document.getElementsByTagName("head")[0];
-				for (var i = 0; i < sheets.length; ++i) {
-					var elem = sheets[i];
-					var parent = elem.parentElement || head;
-					parent.removeChild(elem);
-					var rel = elem.rel;
-					if (elem.href && typeof rel != "string" || rel.length == 0 || rel.toLowerCase() == "stylesheet") {
-						var url = elem.href.replace(/(&|\?)_cacheOverride=\d+/, '');
-						elem.href = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cacheOverride=' + (new Date().valueOf());
-					}
-					parent.appendChild(elem);
-				}
-			}
-			var protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
-			var address = protocol + window.location.host + window.location.pathname + '/ws';
-			var socket = new WebSocket(address);
-			socket.onmessage = function (msg) {
-				if (msg.data == 'reload') window.location.reload();
-				else if (msg.data == 'refreshcss') refreshCSS();
-			};
-			if (sessionStorage && !sessionStorage.getItem('IsThisFirstTime_Log_From_LiveServer')) {
-				console.log('Live reload enabled.');
-				sessionStorage.setItem('IsThisFirstTime_Log_From_LiveServer', true);
-			}
-		})();
-	}
-	else {
-		console.error('Upgrade your browser. This Browser is NOT supported WebSocket for Live-Reloading.');
-	}
-	// ]]>
-</script>
 </body>
 </html>

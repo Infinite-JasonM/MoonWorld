@@ -97,6 +97,10 @@
             // Three.js CylinderGeometry는 기본적으로 Y축을 따라 생성됩니다.
             // 따라서 별도의 회전이 필요하지 않습니다.
             // scene.add(coreMeshZ); // 파란색 기둥을 삭제합니다.
+            
+            // 은하계의 모든 요소를 담을 그룹 생성
+            const galaxyGroup = new THREE.Group();
+            scene.add(galaxyGroup);
 
             // --- Galaxy Creation (Multiple Arms - Main) ---
             const numberOfArms = 8;
@@ -164,7 +168,7 @@
             });
 
             const galaxyPoints = new THREE.Points(galaxyStarsGeometry, galaxyMaterial);
-            scene.add(galaxyPoints);
+            galaxyGroup.add(galaxyPoints); // 그룹에 추가
             
             // --- Galaxy Creation (Multiple Arms - New Layer) ---
             const numberOfArms2 = 8;
@@ -234,7 +238,7 @@
             });
 
             const galaxyPoints2 = new THREE.Points(galaxyStarsGeometry2, galaxyMaterial2);
-            scene.add(galaxyPoints2);
+            galaxyGroup.add(galaxyPoints2); // 그룹에 추가
 
             // --- Galaxy Creation (New Layer) ---
             const numberOfArms3 = 4;
@@ -300,7 +304,7 @@
             });
 
             const galaxyPoints3 = new THREE.Points(galaxyStarsGeometry3, galaxyMaterial3);
-            scene.add(galaxyPoints3);
+            galaxyGroup.add(galaxyPoints3); // 그룹에 추가
             
             // --- 불규칙하게 흩어진 별들 추가 (5,000개) ---
             const scatteredStarCount = 10000;
@@ -349,7 +353,7 @@
             });
 
             const scatteredStars = new THREE.Points(scatteredStarsGeometry, scatteredStarsMaterial);
-            scene.add(scatteredStars);
+            galaxyGroup.add(scatteredStars); // 그룹에 추가
 
             // --- Galaxy Creation (New Layer 4) ---
             const numberOfArms4 = 5;
@@ -415,7 +419,7 @@
             });
 
             const galaxyPoints4 = new THREE.Points(galaxyStarsGeometry4, galaxyMaterial4);
-            scene.add(galaxyPoints4);
+            galaxyGroup.add(galaxyPoints4); // 그룹에 추가
 
 
             // --- Galaxy Creation (New Layer 5) ---
@@ -482,7 +486,7 @@
             });
 
             const galaxyPoints5 = new THREE.Points(galaxyStarsGeometry5, galaxyMaterial5);
-            scene.add(galaxyPoints5);
+            galaxyGroup.add(galaxyPoints5); // 그룹에 추가
 
             // --- Galaxy Creation (New Layer 6) ---
             const numberOfArms6 = 6; 
@@ -547,7 +551,7 @@
             });
 
             const galaxyPoints6 = new THREE.Points(galaxyStarsGeometry6, galaxyMaterial6);
-            scene.add(galaxyPoints6);
+            galaxyGroup.add(galaxyPoints6); // 그룹에 추가
 
 
             // --- 은하 중심축 내부의 불규칙 별들 (100개) ---
@@ -587,7 +591,7 @@
             });
 
             const innerCoreStars = new THREE.Points(innerStarsGeometry, innerStarsMaterial);
-            scene.add(innerCoreStars);
+            galaxyGroup.add(innerCoreStars); // 그룹에 추가
 
 
             // --- Galaxy Creation (New Layer 7) ---
@@ -653,7 +657,7 @@
             });
 
             const galaxyPoints7 = new THREE.Points(galaxyStarsGeometry7, galaxyMaterial7);
-            scene.add(galaxyPoints7);
+            galaxyGroup.add(galaxyPoints7); // 그룹에 추가
 
 
 
@@ -684,15 +688,7 @@
                 });
                 
                 // 은하계 회전
-                galaxyPoints.rotation.y -= 0.0005;
-                galaxyPoints2.rotation.y = galaxyPoints.rotation.y;
-                galaxyPoints3.rotation.y = galaxyPoints.rotation.y;
-                galaxyPoints4.rotation.y = galaxyPoints.rotation.y;
-                galaxyPoints5.rotation.y = galaxyPoints.rotation.y; 
-                galaxyPoints6.rotation.y = galaxyPoints.rotation.y;
-                galaxyPoints7.rotation.y = galaxyPoints.rotation.y; 
-                scatteredStars.rotation.y = galaxyPoints.rotation.y;
-                innerCoreStars.rotation.y = galaxyPoints.rotation.y;
+                galaxyGroup.rotation.y -= 0.0005;
 
                 controls.update();
                 renderer.render(scene, camera);
